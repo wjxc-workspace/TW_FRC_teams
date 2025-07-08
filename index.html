@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣機器人隊伍地圖</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定義字體 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 淺灰色背景 */
+        }
+        /* 地圖容器樣式 */
+        .map-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px; /* 限制地圖最大寬度 */
+            aspect-ratio: 800 / 1000; /* 根據地圖圖片的長寬比調整 */
+            background-image: url('https://class.jnps.tp.edu.tw/new_class/286/up_files/dl/%E5%8F%B0%E7%81%A3%E8%A1%8C%E6%94%BF%E5%8D%80_%E7%A9%BA%E7%99%BD.JPG'); /* 台灣地圖佔位符 */
+            background-size: contain; /* 確保地圖圖片完整顯示 */
+            background-repeat: no-repeat;
+            background-position: center;
+            border-radius: 1rem; /* 圓角 */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* 陰影效果 */
+            margin: 2rem auto; /* 居中顯示 */
+            overflow: hidden; /* 防止內容溢出 */
+        }
+        /* 縣市標記樣式 */
+        .city-marker {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-color: #3b82f6; /* 藍色 */
+            border-radius: 50%; /* 圓形 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); /* 標記陰影 */
+            z-index: 10; /* 確保標記在上方 */
+        }
+        .city-marker:hover {
+            transform: scale(1.2); /* 懸停放大效果 */
+            background-color: #2563eb; /* 深藍色 */
+        }
+        /* 資訊框樣式 */
+        .info-box {
+            position: absolute;
+            background-color: white;
+            border-radius: 0.75rem; /* 圓角 */
+            padding: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 資訊框陰影 */
+            z-index: 20; /* 確保資訊框在最上方 */
+            min-width: 250px;
+            max-width: 350px;
+            opacity: 0; /* 預設隱藏 */
+            visibility: hidden; /* 預設隱藏 */
+            transform: translateY(10px); /* 初始位置微調 */
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .info-box.active {
+            opacity: 1; /* 顯示 */
+            visibility: visible; /* 顯示 */
+            transform: translateY(0); /* 恢復位置 */
+        }
+        /* SVG 線條樣式 */
+        .map-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 讓線條不阻擋點擊事件 */
+            z-index: 5; /* 在標記和資訊框之間 */
+        }
+        .map-lines line {
+            stroke: #ef4444; /* 紅色線條 */
+            stroke-width: 2;
+            stroke-dasharray: 5 5; /* 虛線效果 */
+            transition: stroke-dashoffset 0.5s ease-out;
+        }
+
+        /* 響應式調整 */
+        @media (max-width: 768px) {
+            .map-container {
+                margin: 1rem auto;
+            }
+            .info-box {
+                min-width: unset;
+                max-width: 90%;
+                left: 50% !important; /* 在小螢幕上居中 */
+                transform: translateX(-50%) translateY(10px);
+            }
+            .info-box.active {
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+    <h1 class="text-3xl font-extrabold text-gray-800 mb-8 mt-4 rounded-lg bg-white p-4 shadow-md">台灣機器人隊伍分佈圖</h1>
+
+    <div id="mapContainer" class="map-container">
+        <svg id="mapLines" class="map-lines"></svg>
+        <!-- 縣市標記將由 JavaScript 動態生成 -->
+    </div>
+
+    <div id="infoBox" class="info-box hidden">
+        <h3 id="infoBoxCity" class="text-lg font-bold text-gray-900 mb-2"></h3>
+        <p class="text-sm text-gray-600 mb-2">隊伍數量：<span id="infoBoxCount" class="font-semibold text-blue-600"></span></p>
+        <ul id="infoBoxTeams" class="list-disc list-inside text-sm text-gray-700">
+            <!-- 隊伍列表將由 JavaScript 動態生成 -->
+        </ul>
+        <button id="closeInfoBox" class="mt-4 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 shadow-md">關閉</button>
+    </div>
+
+    <script>
+        // 原始輸入資料
+        const rawData = `4253台北台北美國學校Raid Zero6083嘉義協同中學Overlooking6191台北北一女RoboKryptonite6947台北復興實中Savage Tumaz6998台南南科實中Unipards7130台中明道中學Future Shock7497台北成功高中MARAHO7526高雄高雄中學Welcome to team7551嘉義竹崎高中Extreme Mechanism7589新北麗山高中Lishan Blue Magpie7632新北安康高中An Kang Robotics Maker7636台中中科實中Robomania7645台北南港高工NK MTC7673新北恆毅中學Formosan Sika7709台北板橋高中Formosa Pangolin8020台北建國中學CyberpunK8169高雄岡山高中Aries8503台北台北美國學校Raid One8569新北中和高中Zhonghe8584嘉義嘉華高中Infinity Robotics8585台北大安高工Bombax Leopard8595新北格致中學This Is How We Play8723桃園陽明中學Woodpanda8725新北南山高中MistyPanther8790台南中信國際學校（興國）Departure8805台南南光高中NKST368806新北崇光中學Our Lady of Providence Dream League9079新北新店高中Mechanic storm9126高雄義大高中Silver Hawks9427新北樹林高中iDeer9501新北三民高中Sidereal Envoy9564新北泰山高中Taishan Robotics10034宜蘭慈心華德福實中GammaLand10114新北錦和高中Phantom Talons10390台中曉明女中GOOGIRL10618嘉義協同中學Overlooking 2`;
+
+        // 將原始資料解析為結構化陣列
+        function parseData(dataString) {
+            const regex = /(\d{4})(台北|新北|桃園|台中|嘉義|台南|高雄|宜蘭)([^0-9]+?)(Raid Zero|Overlooking|RoboKryptonite|Savage Tumaz|Unipards|Future Shock|MARAHO|Welcome to team|Extreme Mechanism|Lishan Blue Magpie|An Kang Robotics Maker|Robomania|NK MTC|Formosan Sika|Formosa Pangolin|CyberpunK|Aries|Raid One|Zhonghe|Infinity Robotics|Bombax Leopard|This Is How We Play|Woodpanda|MistyPanther|Departure|NKST36|Our Lady of Providence Dream League|Mechanic storm|Silver Hawks|iDeer|Sidereal Envoy|Taishan Robotics|GammaLand|Phantom Talons|GOOGIRL|Overlooking 2)/g;
+            let match;
+            const teams = [];
+            while ((match = regex.exec(dataString)) !== null) {
+                // match[1]: ID, match[2]: City, match[3]: School, match[4]: Team Name
+                // 由於學校名稱可能包含數字，且隊伍名稱有明確列表，我們需要更精確地提取學校名稱
+                // 這裡假設學校名稱是城市之後到隊伍名稱之前的所有內容
+                const fullEntry = match[0];
+                const id = match[1];
+                const city = match[2];
+                const teamName = match[4];
+                // 從完整條目中提取學校名稱：從城市名稱的末尾到隊伍名稱的開頭
+                const schoolStartIndex = fullEntry.indexOf(city) + city.length;
+                const teamNameIndex = fullEntry.indexOf(teamName, schoolStartIndex);
+                const school = fullEntry.substring(schoolStartIndex, teamNameIndex).trim();
+
+                teams.push({
+                    id: id,
+                    city: city,
+                    school: school,
+                    team: teamName
+                });
+            }
+            return teams;
+        }
+
+        const allTeams = parseData(rawData);
+
+        // 按縣市分組隊伍
+        const teamsByCity = allTeams.reduce((acc, team) => {
+            if (!acc[team.city]) {
+                acc[team.city] = [];
+            }
+            acc[team.city].push(team);
+            return acc;
+        }, {});
+
+        // 台灣主要縣市的近似座標 (相對於 800x1000 圖片的百分比)
+        // 這些座標需要根據實際地圖圖片進行微調以達到最佳視覺效果
+        const cityCoordinates = {
+            "台北": { x: 75, y: 7 },
+            "新北": { x: 75, y: 13 },
+            "桃園": { x: 63, y: 10 },
+            "宜蘭": { x: 77, y: 22 },
+            "台中": { x: 50, y: 32 },
+            "嘉義": { x: 42, y: 38 },
+            "台南": { x: 35, y: 59 },
+            "高雄": { x: 38, y: 70 }
+        };
+
+        const mapContainer = document.getElementById('mapContainer');
+        const infoBox = document.getElementById('infoBox');
+        const infoBoxCity = document.getElementById('infoBoxCity');
+        const infoBoxCount = document.getElementById('infoBoxCount');
+        const infoBoxTeams = document.getElementById('infoBoxTeams');
+        const closeInfoBoxButton = document.getElementById('closeInfoBox');
+        const mapLinesSvg = document.getElementById('mapLines');
+
+        let currentActiveMarker = null; // 用於追蹤當前活躍的標記
+
+        // 渲染縣市標記
+        function renderCityMarkers() {
+            for (const city in teamsByCity) {
+                if (cityCoordinates[city]) {
+                    const coords = cityCoordinates[city];
+                    const marker = document.createElement('div');
+                    marker.className = 'city-marker';
+                    marker.style.left = `${coords.x}%`;
+                    marker.style.top = `${coords.y}%`;
+                    marker.textContent = teamsByCity[city].length; // 顯示隊伍數量
+                    marker.dataset.city = city; // 儲存縣市名稱
+
+                    marker.addEventListener('click', (event) => {
+                        event.stopPropagation(); // 防止點擊地圖容器關閉資訊框
+                        displayInfoBox(city, marker);
+                    });
+                    mapContainer.appendChild(marker);
+                }
+            }
+        }
+
+        // 顯示資訊框
+        function displayInfoBox(city, marker) {
+            // 清除之前的線條
+            mapLinesSvg.innerHTML = '';
+
+            const teams = teamsByCity[city];
+            infoBoxCity.textContent = city;
+            infoBoxCount.textContent = teams.length;
+            infoBoxTeams.innerHTML = '';
+            teams.forEach(team => {
+                const li = document.createElement('li');
+                li.textContent = `${team.school} - ${team.team}`;
+                infoBoxTeams.appendChild(li);
+            });
+
+            // 計算標記的絕對位置
+            const mapRect = mapContainer.getBoundingClientRect();
+            const markerRect = marker.getBoundingClientRect();
+
+            // 標記中心點相對於地圖容器的座標
+            const markerX = markerRect.left - mapRect.left + markerRect.width / 2;
+            const markerY = markerRect.top - mapRect.top + markerRect.height / 2;
+
+            // 設置資訊框的位置
+            // 嘗試將資訊框放置在標記的右側或左側，並確保它在可視範圍內
+            let infoBoxLeft = markerX; // 預設在右側
+            let infoBoxTop = markerY + infoBox.offsetHeight / 2; // 垂直居中對齊
+            console.log(infoBoxTop, infoBoxLeft, markerRect.top, markerRect.left);
+
+            // 檢查是否超出右邊界
+            // if (infoBoxLeft + infoBox.offsetWidth > mapRect.width) {
+            //     infoBoxLeft = markerX - infoBox.offsetWidth - 30; // 移到左側
+            // }
+            // // 檢查是否超出上邊界
+            // if (infoBoxTop < 0) {
+            //     infoBoxTop = 0;
+            // }
+            // // 檢查是否超出下邊界
+            // if (infoBoxTop + infoBox.offsetHeight > mapRect.height) {
+            //     infoBoxTop = mapRect.height - infoBox.offsetHeight;
+            // }
+
+            infoBox.style.left = `${infoBoxLeft}px`;
+            infoBox.style.top = `${infoBoxTop}px`;
+
+            infoBox.classList.add('active');
+            infoBox.classList.remove('hidden');
+
+            currentActiveMarker = marker; // 更新當前活躍標記
+
+            // 繪製從標記到資訊框中心的線條
+            // const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            // line.setAttribute('x1', markerX);
+            // line.setAttribute('y1', markerY);
+            // line.setAttribute('x2', infoBoxLeft + infoBox.offsetWidth / 2); // 連接到資訊框中心
+            // line.setAttribute('y2', infoBoxTop + infoBox.offsetHeight / 2);
+            // mapLinesSvg.appendChild(line);
+        }
+
+        // 關閉資訊框
+        closeInfoBoxButton.addEventListener('click', () => {
+            infoBox.classList.remove('active');
+            // 等待過渡動畫完成後再隱藏
+            setTimeout(() => {
+                infoBox.classList.add('hidden');
+            }, 300);
+            mapLinesSvg.innerHTML = ''; // 清除線條
+            currentActiveMarker = null;
+        });
+
+        // 點擊地圖容器外部時關閉資訊框
+        document.addEventListener('click', (event) => {
+            if (!infoBox.contains(event.target) && !mapContainer.contains(event.target)) {
+                infoBox.classList.remove('active');
+                setTimeout(() => {
+                    infoBox.classList.add('hidden');
+                }, 300);
+                mapLinesSvg.innerHTML = '';
+                currentActiveMarker = null;
+            }
+        });
+
+        // 初始化渲染
+        window.onload = renderCityMarkers;
+
+        // 監聽視窗大小變化，重新定位資訊框和線條
+        window.addEventListener('resize', () => {
+            if (currentActiveMarker && infoBox.classList.contains('active')) {
+                // 如果有活躍的資訊框，重新計算並定位
+                displayInfoBox(currentActiveMarker.dataset.city, currentActiveMarker);
+            }
+        });
+
+    </script>
+</body>
+</html>
