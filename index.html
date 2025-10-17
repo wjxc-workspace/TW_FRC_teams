@@ -85,6 +85,9 @@
             stroke-dasharray: 5 5; /* 虛線效果 */
             transition: stroke-dashoffset 0.5s ease-out;
         }
+        .rookie {
+            color: red;
+        }
 
         /* 響應式調整 */
         @media (max-width: 768px) {
@@ -104,7 +107,9 @@
     </style>
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
-    <h1 class="text-3xl font-extrabold text-gray-800 mb-8 mt-4 rounded-lg bg-white p-4 shadow-md">台灣機器人隊伍分佈圖</h1>
+    <h1 class="text-3xl font-extrabold text-gray-800 mt-4 rounded-lg bg-white p-4 shadow-md">台灣機器人隊伍分佈圖</h1>
+    <p>隊伍說明為<strong style="color: red">紅字</strong>者為新創隊伍</p>
+    <p>聲明:本網頁由Gemini-2.5Pro製作</p>
 
     <div id="mapContainer" class="map-container">
         <svg id="mapLines" class="map-lines"></svg>
@@ -120,40 +125,8 @@
         <button id="closeInfoBox" class="mt-4 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 shadow-md">關閉</button>
     </div>
 
+    <script src="teams.js"></script>
     <script>
-        // 原始輸入資料
-        const rawData = `4253台北台北美國學校Raid Zero6083嘉義協同中學Overlooking6191台北北一女RoboKryptonite6947台北復興實中Savage Tumaz6998台南南科實中Unipards7130台中明道中學Future Shock7497台北成功高中MARAHO7526高雄雄中雄女聯隊Welcome to team7551嘉義竹崎高中Extreme Mechanism7589新北麗山高中Lishan Blue Magpie7632新北安康高中An Kang Robotics Maker7636台中中科實中Robomania7645台北南港高工NK MTC7673新北恆毅中學Formosan Sika7709台北板橋高中Formosa Pangolin8020台北建國中學CyberpunK8169高雄岡山高中Aries8503台北台北美國學校Raid One8569新北中和高中Zhonghe8584嘉義嘉華高中Infinity Robotics8585台北大安高工Bombax Leopard8595新北格致中學This Is How We Play8723桃園陽明中學Woodpanda8725新北南山高中MistyPanther8790台南中信國際學校（興國）Departure8805台南南光高中NKST368806新北崇光中學Our Lady of Providence Dream League9079新北新店高中Mechanic storm9126高雄義大高中Silver Hawks9427新北樹林高中iDeer9501新北三民高中Sidereal Envoy9564新北泰山高中Taishan Robotics10034宜蘭慈心華德福實中GammaLand10114新北錦和高中Phantom Talons10390台中曉明女中GOOGIRL10618嘉義協同中學Overlooking 2`;
-
-        // 將原始資料解析為結構化陣列
-        function parseData(dataString) {
-            const regex = /(\d{4})(台北|新北|桃園|台中|嘉義|台南|高雄|宜蘭)([^0-9]+?)(Raid Zero|Overlooking|RoboKryptonite|Savage Tumaz|Unipards|Future Shock|MARAHO|Welcome to team|Extreme Mechanism|Lishan Blue Magpie|An Kang Robotics Maker|Robomania|NK MTC|Formosan Sika|Formosa Pangolin|CyberpunK|Aries|Raid One|Zhonghe|Infinity Robotics|Bombax Leopard|This Is How We Play|Woodpanda|MistyPanther|Departure|NKST36|Our Lady of Providence Dream League|Mechanic storm|Silver Hawks|iDeer|Sidereal Envoy|Taishan Robotics|GammaLand|Phantom Talons|GOOGIRL|Overlooking 2)/g;
-            let match;
-            const teams = [];
-            while ((match = regex.exec(dataString)) !== null) {
-                // match[1]: ID, match[2]: City, match[3]: School, match[4]: Team Name
-                // 由於學校名稱可能包含數字，且隊伍名稱有明確列表，我們需要更精確地提取學校名稱
-                // 這裡假設學校名稱是城市之後到隊伍名稱之前的所有內容
-                const fullEntry = match[0];
-                const id = match[1];
-                const city = match[2];
-                const teamName = match[4];
-                // 從完整條目中提取學校名稱：從城市名稱的末尾到隊伍名稱的開頭
-                const schoolStartIndex = fullEntry.indexOf(city) + city.length;
-                const teamNameIndex = fullEntry.indexOf(teamName, schoolStartIndex);
-                const school = fullEntry.substring(schoolStartIndex, teamNameIndex).trim();
-
-                teams.push({
-                    id: id,
-                    city: city,
-                    school: school,
-                    team: teamName
-                });
-            }
-            return teams;
-        }
-
-        const allTeams = parseData(rawData);
-
         // 按縣市分組隊伍
         const teamsByCity = allTeams.reduce((acc, team) => {
             if (!acc[team.city]) {
@@ -218,7 +191,10 @@
             infoBoxTeams.innerHTML = '';
             teams.forEach(team => {
                 const li = document.createElement('li');
-                li.textContent = `${team.school} - ${team.team}`;
+                if (team.rookie) {
+                    li.classList.add('rookie');
+                }
+                li.textContent = `${team.id} - ${team.school} - ${team.team}`;
                 infoBoxTeams.appendChild(li);
             });
 
